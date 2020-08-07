@@ -1,0 +1,37 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29806.167
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "MMath", "MMath\MMath.fsproj", "{95F1AD9A-0E59-4ACD-BB6B-585DF2B18EAC}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "MMath.Core", "MMath.Core\MMath.Core.fsproj", "{F360E40A-5F61-4BEA-9FD7-04CC060D47F4}"
+EndProject
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "MMath.Test", "MMath.Test\MMath.Test.fsproj", "{D41A33DB-FDEE-4055-85A8-090DFD16B964}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{95F1AD9A-0E59-4ACD-BB6B-585DF2B18EAC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{95F1AD9A-0E59-4ACD-BB6B-585DF2B18EAC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{95F1AD9A-0E59-4ACD-BB6B-585DF2B18EAC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{95F1AD9A-0E59-4ACD-BB6B-585DF2B18EAC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F360E40A-5F61-4BEA-9FD7-04CC060D47F4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F360E40A-5F61-4BEA-9FD7-04CC060D47F4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F360E40A-5F61-4BEA-9FD7-04CC060D47F4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F360E40A-5F61-4BEA-9FD7-04CC060D47F4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D41A33DB-FDEE-4055-85A8-090DFD16B964}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D41A33DB-FDEE-4055-85A8-090DFD16B964}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D41A33DB-FDEE-4055-85A8-090DFD16B964}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D41A33DB-FDEE-4055-85A8-090DFD16B964}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {7FFD9807-624A-46AE-97B1-49FBD8BE99CC}
+	EndGlobalSection
+EndGlobal
