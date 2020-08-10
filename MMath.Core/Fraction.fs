@@ -2,6 +2,7 @@ namespace MMath.Core
 
 open System
 open System.Diagnostics
+open System.Text.RegularExpressions
 
 /// 为 Fraction 提供辅助工具。
 [<Obsolete "此模块只应被 Fraction 类使用。"; DebuggerStepThrough>]
@@ -48,13 +49,41 @@ type FractionType =
         match x with
         | Positive -> Negative
         | Negative -> Positive
+        | Zero -> Zero
     static member (=+&-) (x, y) = if x = Positive && y = Negative then Positive else Negative
     static member (=-&+) (x, y) = if x = Negative && y = Positive then Negative else Positive
     static member (=&) (x, y) = if x = y then Positive else Negative
 
+/// 为 Fraction 提供辅助工具。
+[<Obsolete "此模块只应被 Fraction 类使用。"; DebuggerStepThrough>]
+module fracHlprStr =
+    let zero     = Regex(@"^(\-)?0+(\.0+)?$")
+    let posInt   = Regex(@"^\d+?$")
+    let posFloat = Regex(@"^\d+?(\.\d+)?$")
+    let negInt   = Regex(@"^\-\d+?$")
+    let negFloat = Regex(@"^\-\d+?(\.\d+)?$")
+
+    let ubintFromString input = 
+        if zero.IsMatch input then Ok (Zero, Ubint._0, Ubint._1)
+        elif posInt.IsMatch input then Ok (Positive, Ubint.FromString input |> Result.unwrap, Ubint._1)
+        elif posFloat.IsMatch input then 
+            let str = input.Replace (".", "")
+            let i = input.Length - 1 - input.IndexOf '.'
+            let str' = String.init i (fun _ -> "0")
+            Ok (Positive, Ubint.FromString str |> Result.unwrap, Ubint.FromString ("1" + str') |> Result.unwrap)
+        elif negInt.IsMatch input then Ok (Negative, Ubint.FromString input.[1..] |> Result.unwrap, Ubint._1)
+        elif negFloat.IsMatch input then 
+            let str = input.Replace (".", "")
+            let i = input.Length - 1 - input.IndexOf '.'
+            let str' = String.init i (fun _ -> "0")
+            Ok (Negative, Ubint.FromString str.[1..] |> Result.unwrap, Ubint.FromString ("1" + str') |> Result.unwrap)
+        else Error "无法识别该字符串。"
+
+
 // "此构造已弃用。"
 #nowarn "44"
 open fracHlpr
+open fracHlprStr
 #warn "44"
 
 [<CompiledName "Fraction";>]
@@ -77,6 +106,10 @@ type Frac private (_type, _numerator, _denominator) =
             Error <| sprintf "type “%A”与分数值不匹配" fracType
         else (fracType, numerator, denominator) |> ctor |> Ok
     static member From (fracType, numerator) = Frac.From (fracType, numerator, Ubint._1)
+    static member From str =
+        match ubintFromString str with
+        | Ok (t, n, d) -> Ok <| ctor (t, n, d)
+        | Error e -> Error e
 
     static member GetReciprocal (x: Frac) =
         match x.Type with
