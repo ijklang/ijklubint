@@ -3,6 +3,7 @@ namespace MMath.Core
 open System
 open System.Diagnostics
 open System.Text.RegularExpressions
+open System.Runtime.InteropServices
 
 /// 为 Fraction 提供辅助工具。
 [<Obsolete "此模块只应被 Fraction 类使用。"; DebuggerStepThrough>]
@@ -22,23 +23,6 @@ module internal fracHlpr =
                 else gdc denominator numerator
             numerator / r, denominator / r
     let ubintFromInt64 = abs >> uint64 >> Ubint.op_Explicit
-    let private max_e = 100_0000_0000_0000_0000UL
-    let private max_uint64_f = float UInt64.MaxValue
-    let private max_uint64_m = decimal UInt64.MaxValue
-    let rec private ubintFromFloat_ d (n: float) =
-        if  Math.Ceiling n <> n && 
-            n * 10. < max_uint64_f && 
-            d * 10UL < max_e 
-        then ubintFromFloat_ (d * 10UL) (n * 10.)
-        else n |> uint64 |> Ubint.op_Explicit, d |> uint64 |> Ubint.op_Explicit
-    let ubintFromFloat = ubintFromFloat_ 1UL
-    let rec private ubintFromDecimal_ d (n: decimal) =
-        if  Math.Ceiling n <> n && 
-            n * 10m < max_uint64_m && 
-            d * 10UL < max_e 
-        then ubintFromDecimal_ (d * 10UL) (n * 10m)
-        else n |> uint64 |> Ubint.op_Explicit, d |> uint64 |> Ubint.op_Explicit
-    let ubintFromDecimal = ubintFromDecimal_ 1UL
 
 [<Struct>]
 type FractionType =
@@ -56,34 +40,49 @@ type FractionType =
 
 /// 为 Fraction 提供辅助工具。
 [<Obsolete "此模块只应被 Fraction 类使用。"; DebuggerStepThrough>]
-module fracHlprStr =
-    let zero     = Regex(@"^(\-)?0+(\.0+)?$")
-    let posInt   = Regex(@"^\d+?$")
-    let posFloat = Regex(@"^\d+?(\.\d+)?$")
-    let negInt   = Regex(@"^\-\d+?$")
-    let negFloat = Regex(@"^\-\d+?(\.\d+)?$")
+module fracStrParser =
+    let zero   = Regex(@"^(\-)?0+(\.0+)?$")
+    let Int    = Regex(@"^\-?\d+?$")
+    let Float  = Regex(@"^\-?\d+?(\.\d+)?$")
+    let FloatE = Regex(@"^\-?\d(\.\d+)?E\d+?$")
 
-    let ubintFromString input = 
+    let rec ubintFromString input =
         if zero.IsMatch input then Ok (Zero, Ubint._0, Ubint._1)
-        elif posInt.IsMatch input then Ok (Positive, Ubint.FromString input |> Result.unwrap, Ubint._1)
-        elif posFloat.IsMatch input then 
+        elif Int.IsMatch input then
+            let isNeg = input.[0] = '-'
+            Ok ((if isNeg then Negative else Positive),
+                Ubint.FromString input.[(if isNeg then 1 else 0)..] |> Result.unwrap,
+                Ubint._1)
+        elif Float.IsMatch input then
             let str = input.Replace (".", "")
             let i = input.Length - 1 - input.IndexOf '.'
             let str' = String.init i (fun _ -> "0")
-            Ok (Positive, Ubint.FromString str |> Result.unwrap, Ubint.FromString ("1" + str') |> Result.unwrap)
-        elif negInt.IsMatch input then Ok (Negative, Ubint.FromString input.[1..] |> Result.unwrap, Ubint._1)
-        elif negFloat.IsMatch input then 
-            let str = input.Replace (".", "")
-            let i = input.Length - 1 - input.IndexOf '.'
-            let str' = String.init i (fun _ -> "0")
-            Ok (Negative, Ubint.FromString str.[1..] |> Result.unwrap, Ubint.FromString ("1" + str') |> Result.unwrap)
-        else Error "无法识别该字符串。"
-
+            let isNeg = input.[0] = '-'
+            Ok ((if isNeg then Negative else Positive),
+                Ubint.FromString str.[(if isNeg then 1 else 0)..] |> Result.unwrap,
+                Ubint.FromString ("1" + str') |> Result.unwrap)
+        elif FloatE.IsMatch input then
+            let pow = input.[input.IndexOf '+' + 1..] |> int
+            let isPowNeg = pow < 0
+            let pow = String.init (abs pow) (fun _ -> "0")
+            let pow = "1" + pow |> Ubint.FromString |> Result.unwrap
+            let baseN = input.[0..input.IndexOf 'E' - 1] |> ubintFromString
+            match baseN with
+            | Ok (t, n, d) ->
+                let n, d =
+                    if isPowNeg
+                    then n, d * pow
+                    else n * pow, d
+                Ok (t, n, d)
+            | Error e -> Error e
+        else Error <| sprintf "无法识别字符串“%s”。" input
+    let ubintFromFloat (n: float) = n.ToString() |> ubintFromString |> Result.unwrap
+    let ubintFromDecimal (n: decimal) = n.ToString() |> ubintFromString |> Result.unwrap
 
 // "此构造已弃用。"
 #nowarn "44"
 open fracHlpr
-open fracHlprStr
+open fracStrParser
 #warn "44"
 
 [<CompiledName "Fraction";>]
@@ -115,6 +114,30 @@ type Frac private (_type, _numerator, _denominator) =
         match x.Type with
         | Zero -> "0没有倒数。" |> Error
         | _ -> (x.Type, x.Denominator, x.Numerator) |> Frac |> Ok
+
+    /// n: 要保留的位数
+    [<CompiledName("ToDouble")>]
+    static member ToFloat (x: Frac, [<Optional; DefaultParameterValue(5u)>] decimals) =
+        match x.Type with
+        | Zero -> 0.
+        | _ ->
+            let decimals = decimals + 1u
+            let u = x.Numerator.MulPowOf10 decimals / x.Denominator
+            let needAdd1 = u.Units.Head > 4y
+            let u = u / Ubint._10 + if needAdd1 then Ubint._1 else Ubint._0
+            let r = u.ToString()
+            let decimals = decimals - 1u
+            let r =
+                let i = (int decimals) + 1 - r.Length
+                if i > 0 then
+                     (if x.Type = Negative then "-" else "") + String.init i (fun _ -> "0") + r
+                else (if x.Type = Negative then "-" else "") + r
+            if decimals > 0u
+            then r.Insert (r.Length - int decimals, ".") |> float
+            else r |> float
+
+    [<CompiledName("ToDouble")>]
+    member x.ToFloat ([<Optional; DefaultParameterValue(5u)>] decimals) = Frac.ToFloat (x, decimals)
 
     static member ToString (x: Frac) =
         match x.Type with
@@ -171,16 +194,8 @@ type Frac private (_type, _numerator, _denominator) =
     static member op_Explicit num =
         if num = 0L then Frac._0
         else Frac ((if num > 0L then Positive else Negative), num |> ubintFromInt64, Ubint._1)
-    static member op_Explicit num =
-        if num = 0. then Frac._0
-        else
-            let n, d = ubintFromFloat (abs num)
-            ((if num > 0. then Positive else Negative), n, d) |> ctor
-    static member op_Explicit num =
-        if num = 0m then Frac._0
-        else
-            let n, d = ubintFromDecimal (abs num)
-            ((if num > 0m then Positive else Negative), n, d) |> ctor
+    static member op_Explicit num = ubintFromFloat num |> ctor
+    static member op_Explicit num = ubintFromDecimal num |> ctor
 
     static member (+) (x, y) =
         if x = Frac._0 then y
@@ -209,7 +224,7 @@ type Frac private (_type, _numerator, _denominator) =
         | Negative -> -x
         | _ -> x
 
-    static member (-) (x, y) = 
+    static member (-) (x, y) =
         if x = Frac._0 then -y
         elif y = Frac._0 then x
         else

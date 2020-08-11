@@ -40,7 +40,7 @@ module internal ubintHlpr =
         else false
     let isPowOf10 units = isPowOf10_ 0 units units.Length
 
-    let getPowOf10 = List.filter ((=) 0y) >> List.length
+    let getPowOf10 = List.filter ((=) 0y) >> List.length >> uint32
 
     let append0 n units = units @ [ for _ = 1 to n do 0y ]
 
@@ -54,8 +54,8 @@ module internal ubintHlpr =
             |> String
 
     let rec append0ToHead n bytes =
-        if n = 0 then bytes
-        else append0ToHead (n - 1) (0y :: bytes)
+        if n = 0u then bytes
+        else append0ToHead (n - 1u) (0y :: bytes)
 
     let rec private get要进的数 state isSub k =
         if isSub then -state
@@ -79,8 +79,8 @@ module internal ubintHlpr =
     let 进位 isSub units = 进位_ 0 0y [] units isSub units.Length
 
     let rec trim0For'n'Times n state =
-        if n = 0 then state
-        else trim0For'n'Times (n - 1) (state |> List.tail)
+        if n = 0u then state
+        else trim0For'n'Times (n - 1u) (state |> List.tail)
 
 // "此构造已弃用。"
 #nowarn "44"
@@ -186,21 +186,23 @@ type Ubint private (units) =
             |> Ubint
         else failwith "被减数不能小于减数。"
 
+    static member MulPowOf10 (x: Ubint, p) = append0ToHead p x.Units |> Ubint
+    member x.MulPowOf10 p = Ubint.MulPowOf10 (x, p)
+
     static member (*) (x, y) =
         if   x = Ubint._0 || y = Ubint._0 then Ubint._0
         elif x = Ubint._1 then y
         elif y = Ubint._1 then x
         elif x.IsPowOf10 || y.IsPowOf10 then
-            (if x.IsPowOf10 then y else x).Units
-            |> ((if x.IsPowOf10 then x else y).Units |> getPowOf10 |> append0ToHead)
-            |> Ubint
+            let t = if x.IsPowOf10 then y else x
+            t.MulPowOf10 (getPowOf10 (if t = x then y else x).Units)
         else
             y.Units
             |> List.mapi (fun i y ->
                 x.Units
                 |> List.map ((*) y)
                 |> 进位 false
-                |> append0ToHead i
+                |> append0ToHead (uint32 i)
                 |> Ubint
             )
             |> List.fold (+) Ubint._0

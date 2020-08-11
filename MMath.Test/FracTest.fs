@@ -62,7 +62,7 @@ let ``* Test`` () =
 
 [<Test>]
 let ``/ Test`` () =
-    let needed = (nums1, nums2) ||> List.map2 (fun i j -> if j = 0m then 0m else i / j) |> List.map Frac.op_Explicit
-    let had    = (nums1, nums2) |>> List.map2 (fun i j -> if j = Frac._0 then Frac._0 else i / j)
-    (needed, had) ||> List.iteri2 (fun i j k -> if j <> k then printfn "%f / %f should = %s but has %s" nums1.[i] nums2.[i] (j.ToString()) (k.ToString()) )
+    let needed = (nums1, nums2) ||> List.map2 (fun i j -> if j = 0m then 0m else i / j) |> List.map (fun i -> System.Math.Round (i, 5) |> float)
+    let had    = (nums1, nums2) |>> List.map2 (fun i j -> if j = Frac._0 then Frac._0 else i / j) |> List.map (Frac.ToFloat)
+    (needed, had) ||> List.iteri2 (fun i j k -> if j <> k then printfn "%f / %f should = %f but has %f" nums1.[i] nums2.[i] j k)
     had |> should equal needed
