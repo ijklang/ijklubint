@@ -22,9 +22,7 @@ type FractionType =
 /// 为 Fraction 提供辅助工具。
 [<Obsolete "此模块只应被 Fraction 类使用。"; DebuggerStepThrough>]
 module internal fracHlpr =
-    let rec private gdc a b =
-        if b = Ubint._0 then a
-        else gdc b (a % b)
+    let rec private gdc a b = if b = Ubint._0 then a else gdc b (a % b)
 
     let reduce numerator denominator =
         if numerator = denominator then Ubint._1, Ubint._1
@@ -39,7 +37,7 @@ module internal fracHlpr =
 
     let zero   = Regex(@"^(\-)?0+(\.0+)?$")
     let Int    = Regex(@"^\-?\d+?$")
-    let Float  = Regex(@"^\-?\d+?(\.\d+)?$")
+    let Float  = Regex(@"^\-?\d+?\.\d+?$")
     let FloatE = Regex(@"^\-?\d(\.\d+)?E\d+?$")
 
     let rec ubintFromString input =
@@ -101,23 +99,6 @@ type Frac private (_type, _numerator, _denominator) =
     [<CompiledName "MinusOne">]
     static member _m1 = Frac (Negative, Ubint._1, Ubint._1)
 
-    static member From (ftype, numer, denom) =
-        if denom = Ubint._0 
-        then Error "分母不能为0。"
-        elif (ftype = Zero && numer <> Ubint._0) || (numer = Ubint._0 && ftype <> Zero) 
-        then Error <| sprintf "type “%A”与分数值不匹配" ftype
-        else Ok <| make (ftype, numer, denom)
-    static member From (ftype, num) = Frac.From (ftype, num, Ubint._1)
-    static member From str =
-        match ubintFromString str with
-        | Ok    r -> Ok <| make r
-        | Error e -> Error e
-
-    static member GetReciprocal (x: Frac) =
-        match x.Type with
-        | Zero -> Error "0没有倒数。"
-        | _ -> Ok <| make (x.Type, x.Denominator, x.Numerator)
-
     /// n: 要保留的位数
     [<CompiledName("ToDouble")>]
     static member ToFloat (x: Frac, [<Optional; DefaultParameterValue(5u)>] decimals) =
@@ -127,23 +108,22 @@ type Frac private (_type, _numerator, _denominator) =
             let decimals' = decimals + 1u
             let u = x.Numerator.MulByPowOf10 decimals' / x.Denominator
             let r =
-                if u.Units.Head > 4y 
-                then u / Ubint._10 + Ubint._1 
+                if u.Units.Head > 4y
+                then u / Ubint._10 + Ubint._1
                 else u / Ubint._10
                 |> Ubint.ToString
             let r =
                 let i = (int decimals') - r.Length
-                if i > 0 then 
-                    if x.Type = Negative 
-                    then "-" + String.init i (fun _ -> "0") + r 
+                if i > 0 then
+                    if x.Type = Negative
+                    then "-" + String.init i (fun _ -> "0") + r
                     else String.init i (fun _ -> "0") + r
-                elif x.Type = Negative 
-                then "-" + r 
+                elif x.Type = Negative
+                then "-" + r
                 else r
             if decimals > 0u
             then Double.Parse <| r.Insert (r.Length - int decimals, ".")
             else Double.Parse r
-
     [<CompiledName("ToDouble")>]
     member x.ToFloat ([<Optional; DefaultParameterValue(5u)>] decimals) = Frac.ToFloat (x, decimals)
 
@@ -153,13 +133,12 @@ type Frac private (_type, _numerator, _denominator) =
         | t ->
             if x.Denominator = Ubint._1 then
                 if t = Positive then x.Numerator.ToString()
-                else sprintf "-%s" <| x.Numerator.ToString() 
+                else sprintf "-%s" <| x.Numerator.ToString()
             else
-                if t = Positive 
+                if t = Positive
                 then sprintf "%s/%s"
                 else sprintf "-(%s/%s)"
                 <|| (x.Numerator.ToString(), x.Denominator.ToString())
-
     override x.ToString () = Frac.ToString x
 
     override x.Equals obj =
@@ -195,6 +174,18 @@ type Frac private (_type, _numerator, _denominator) =
                     else 1
             else -1
 
+    static member From (ftype, numer, denom) =
+        if denom = Ubint._0
+        then Error "分母不能为0。"
+        elif (ftype = Zero && numer <> Ubint._0) || (numer = Ubint._0 && ftype <> Zero)
+        then Error <| sprintf "type “%A”与分数值不匹配" ftype
+        else Ok <| make (ftype, numer, denom)
+    static member From (ftype, num) = Frac.From (ftype, num, Ubint._1)
+    static member From str =
+        match ubintFromString str with
+        | Ok    r -> Ok <| make r
+        | Error e -> Error e
+
     static member op_Explicit (numer, denom) =
         match numer * denom with
         | 0L -> Frac._0
@@ -206,6 +197,11 @@ type Frac private (_type, _numerator, _denominator) =
     static member op_Explicit num = ubintFromFloat   num |> make
     static member op_Explicit num = ubintFromDecimal num |> make
 
+    static member GetReciprocal (x: Frac) =
+        match x.Type with
+        | Zero -> Error "0没有倒数。"
+        | _ -> Ok <| make (x.Type, x.Denominator, x.Numerator)
+
     static member (+) (x, y) =
         if   x = Frac._0 then y
         elif y = Frac._0 then x
@@ -213,10 +209,10 @@ type Frac private (_type, _numerator, _denominator) =
             let xn = x.Numerator * y.Denominator
             let yn = y.Numerator * x.Denominator
             let d = x.Denominator * y.Denominator
-            make 
-            <|  if x.Type = y.Type then       x.Type, xn + yn, d
-                elif xn > yn then x.Type =+&- y.Type, xn - yn, d
-                else           -(x.Type =+&- y.Type), yn - xn, d
+            make
+            <|  if x.Type = y.Type then          x.Type, xn + yn, d
+                elif xn < yn then -(x.Type =+&- y.Type), yn - xn, d
+                else                 x.Type =+&- y.Type, xn - yn, d
 
     static member (~-) (x: Frac) =
         match x.Type with
@@ -239,7 +235,7 @@ type Frac private (_type, _numerator, _denominator) =
             if xn = yn then Frac._0
             else
                 let d = x.Denominator * y.Denominator
-                make 
+                make
                 <|  if x.Type = y.Type then
                         if xn > yn then x.Type, xn - yn, d
                         else           -x.Type, yn - xn, d
