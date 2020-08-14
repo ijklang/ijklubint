@@ -192,7 +192,7 @@ module Tree =
                 let startIndex' = if startIndex = -1 then endIndex' else startIndex
                 find连续op的头尾i startIndex' endIndex' tail inputList
             else startIndex, endIndex
-    let getVar token (vars: System.Collections.Immutable.ImmutableDictionary<string, Tree>) = 
+    let private getVar token (vars: System.Collections.Immutable.ImmutableDictionary<string, Tree>) = 
         match token with
         | Invoke (name, ln, si, ei) ->
             if vars.ContainsKey name 
