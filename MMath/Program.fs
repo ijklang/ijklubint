@@ -51,7 +51,8 @@ let cli (stopwatch: System.Diagnostics.Stopwatch) (cancellationToken: System.Thr
         match readln 0 [] with
         | None -> ()
         | Some rlnList ->
-            let str = rlnList |> List.rev |> String.concat "\n"
+            let rlnList = rlnList |> List.rev
+            let str = rlnList |> String.concat "\n"
             if str.Trim () = "cls" then Console.Clear ()
             elif str.Trim () = "exit" then Environment.Exit 0
             elif str.Trim () = "vars" then
