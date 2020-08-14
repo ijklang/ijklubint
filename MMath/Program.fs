@@ -8,9 +8,9 @@ let rec readln i stack =
         then printf "> "
         else printf "- "
         |> Console.ReadLine
-    if isNull ln then []
+    if isNull ln then None
     elif ln.Contains ";;" then
-        ln.[0..ln.IndexOf ';' - 1] :: stack
+        Some <| ln.[0..ln.IndexOf ';' - 1] :: stack
     else readln (i + 1) (ln :: stack)
 
 let showErr (str: string) error si ei ln sln name =
@@ -48,82 +48,84 @@ let varList = System.Collections.Generic.Dictionary<string, Tree> ()
 let cli (stopwatch: System.Diagnostics.Stopwatch) (cancellationToken: System.Threading.CancellationToken) =
     async {
         printfn ""
-        let rlnList = readln 0 [] |> List.rev
-        let str = rlnList |> String.concat "\n"
-        if str.Trim () = "cls" then Console.Clear ()
-        elif str.Trim () = "exit" then Environment.Exit 0
-        elif str.Trim () = "vars" then
-            printfn ""
-            printfn "已声明 %i 个变量：" varList.Count
-            for i in varList do
-                Console.ForegroundColor <- ConsoleColor.Cyan
-                printf "%s" i.Key
+        match readln 0 [] with
+        | None -> ()
+        | Some rlnList ->
+            let str = rlnList |> List.rev |> String.concat "\n"
+            if str.Trim () = "cls" then Console.Clear ()
+            elif str.Trim () = "exit" then Environment.Exit 0
+            elif str.Trim () = "vars" then
+                printfn ""
+                printfn "已声明 %i 个变量：" varList.Count
+                for i in varList do
+                    Console.ForegroundColor <- ConsoleColor.Cyan
+                    printf "%s" i.Key
+                    Console.ForegroundColor <- ConsoleColor.Gray
+                    printf " = "
+                    Console.ForegroundColor <- ConsoleColor.Green
+                    printfn "%A" i.Value
                 Console.ForegroundColor <- ConsoleColor.Gray
-                printf " = "
-                Console.ForegroundColor <- ConsoleColor.Green
-                printfn "%A" i.Value
-            Console.ForegroundColor <- ConsoleColor.Gray
-        else
-            stopwatch.Reset ()
-            stopwatch.Start ()
-            let lexResult =
-                rlnList
-                |> Lex.lexicalAnalysis
-                |> (fun l ->
-                    match l.Head with
-                    | ErrT (error, ln, si, ei) -> showErr (rlnList.[ln - 1]) error si ei ln 0 String.Empty; []
-                    | _ ->
-                        if
-                            l
-                            |> List.filter(function
-                                | Declare (id, h :: _, sln, _) ->
-                                    match h with
-                                    | ErrT (error, ln, si, ei) -> showErr (rlnList.[ln - 1]) error si ei (sln + ln - 1) sln (match id with Var n -> n | Func (n, _) -> n); true
+            else
+                stopwatch.Reset ()
+                stopwatch.Start ()
+                let lexResult =
+                    rlnList
+                    |> Lex.lexicalAnalysis
+                    |> (fun l ->
+                        match l.Head with
+                        | ErrT (error, ln, si, ei) -> showErr (rlnList.[ln - 1]) error si ei ln 0 String.Empty; []
+                        | _ ->
+                            if
+                                l
+                                |> List.filter(function
+                                    | Declare (id, h :: _, sln, _) ->
+                                        match h with
+                                        | ErrT (error, ln, si, ei) -> showErr (rlnList.[ln - 1]) error si ei (sln + ln - 1) sln (match id with Var n -> n | Func (n, _) -> n); true
+                                        | _ -> false
                                     | _ -> false
-                                | _ -> false
-                            )
-                            |> List.isEmpty
-                        then
-                            l
-                            |> List.map(function
-                                | Declare (id, t, sln, eln) -> Declare (id, List.rev t, sln, eln)
-                                | i -> i
-                            )
-                            |> List.rev
-                        else []
-                )
-            match lexResult with
-            | [] | [ Start; End ] -> stopwatch.Stop()
-            | _ ->
-                let newVar, tree =
-                    (lexResult, varList.ToImmutableDictionary())
-                    ||> Tree.getTree cancellationToken
-                for (name, value) in newVar do
-                    match value with
-                    | Err (error, ln, si, ei) -> showErr (rlnList.[ln - 1]) error si ei ln 0 String.Empty
-                    | _ ->
-                        if varList.ContainsKey name then
-                            varList.[name] <- value
-                        else varList.Add (name, value)
-                let num =
-                    tree
-                    |> Expression.toExpression cancellationToken
-                    |> List.head
-                    |> (function 
-                        | NumE n -> Some n 
-                        | ErrE (error, ln, si, ei) -> showErr (rlnList.[ln - 1]) error si ei ln 0 String.Empty; None
-                        | _ -> Some MMath.Core.Frac._0)
-                stopwatch.Stop ()
-                match num with
-                | Some num ->
-                    if not cancellationToken.IsCancellationRequested then
-                        Console.ForegroundColor <- ConsoleColor.Green
-                        printf "= "
-                        num |> MMath.Core.Frac.ToString |> printfn "%s"
-                        printfn "%A" tree
-                        Console.ForegroundColor <- ConsoleColor.Gray
-                        printfn "本次计算共耗时%f秒。" stopwatch.Elapsed.TotalSeconds
-                | _ -> ()
+                                )
+                                |> List.isEmpty
+                            then
+                                l
+                                |> List.map(function
+                                    | Declare (id, t, sln, eln) -> Declare (id, List.rev t, sln, eln)
+                                    | i -> i
+                                )
+                                |> List.rev
+                            else []
+                    )
+                match lexResult with
+                | [] | [ Start; End ] -> stopwatch.Stop()
+                | _ ->
+                    let newVar, tree =
+                        (lexResult, varList.ToImmutableDictionary())
+                        ||> Tree.getTree cancellationToken
+                    for (name, value) in newVar do
+                        match value with
+                        | Err (error, ln, si, ei) -> showErr (rlnList.[ln - 1]) error si ei ln 0 String.Empty
+                        | _ ->
+                            if varList.ContainsKey name then
+                                varList.[name] <- value
+                            else varList.Add (name, value)
+                    let num =
+                        tree
+                        |> Expression.toExpression cancellationToken
+                        |> List.head
+                        |> (function 
+                            | NumE n -> Some n 
+                            | ErrE (error, ln, si, ei) -> showErr (rlnList.[ln - 1]) error si ei ln 0 String.Empty; None
+                            | _ -> Some MMath.Core.Frac._0)
+                    stopwatch.Stop ()
+                    match num with
+                    | Some num ->
+                        if not cancellationToken.IsCancellationRequested then
+                            Console.ForegroundColor <- ConsoleColor.Green
+                            printf "= "
+                            num |> MMath.Core.Frac.ToString |> printfn "%s"
+                            printfn "%A" tree
+                            Console.ForegroundColor <- ConsoleColor.Gray
+                            printfn "本次计算共耗时%f秒。" stopwatch.Elapsed.TotalSeconds
+                    | _ -> ()
     }
 
 let mutable source: System.Threading.CancellationTokenSource = null
@@ -139,6 +141,7 @@ let main _ =
     printfn "输入要计算的表达式，输入完后在结尾加上半角双分号开始计算。"
     printfn "按下 Ctrl + C 可中止计算。"
     printfn "输入 cls;; 可以清除屏幕上的内容。"
+    printfn "输入 vars;; 可以查看所有已声明的变量的值。"
     printfn "输入 exit;; 退出。"
     let stopwatch = System.Diagnostics.Stopwatch ()
     while true do
